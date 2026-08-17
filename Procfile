@@ -1,1 +1,1 @@
-web: uvicorn backend.server:app --host 0.0.0.0 --port $PORT
+web: cd frontend && npm install && npm run build && cd .. && uvicorn backend.server:app --host 0.0.0.0 --port $PORT

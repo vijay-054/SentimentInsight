@@ -3,3 +3,5 @@ uvicorn==0.25.0
 motor
 pydantic>=2.6.4
 python-dotenv
+aiofiles
+mongomock-motor

@@ -5,6 +5,8 @@ import json
 import asyncio
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorClient
 try:
@@ -15,7 +17,8 @@ except ImportError:
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from parent directory (root of project)
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
 app = FastAPI()
 
@@ -29,6 +32,7 @@ app.add_middleware(
 
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.environ.get("DB_NAME", "sentiment_db")
+USE_MOCK = os.environ.get("USE_MOCK", "false").lower() == "true"
 
 client = None
 db = None
@@ -36,10 +40,26 @@ db = None
 @app.on_event("startup")
 async def startup_db_client():
     global client, db
-    client = AsyncIOMotorClient(MONGO_URL)
-    db = client[DB_NAME]
-    # Ensure descending index on created_at
-    await db.sentiment_history.create_index([("created_at", -1)])
+    try:
+        if USE_MOCK:
+            from mongomock_motor import AsyncMongoMockClient
+            client = AsyncMongoMockClient()
+            print("Using MongoDB mock for development")
+        else:
+            client = AsyncIOMotorClient(MONGO_URL, serverSelectionTimeoutMS=5000)
+            # Test connection
+            await client.admin.command('ping')
+            print(f"Connected to MongoDB at {MONGO_URL}")
+        db = client[DB_NAME]
+        # Ensure descending index on created_at
+        await db.sentiment_history.create_index([("created_at", -1)])
+    except Exception as e:
+        print(f"MongoDB connection failed: {e}")
+        print("Falling back to mock MongoDB for development")
+        from mongomock_motor import AsyncMongoMockClient
+        client = AsyncMongoMockClient()
+        db = client[DB_NAME]
+        await db.sentiment_history.create_index([("created_at", -1)])
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
@@ -117,3 +137,20 @@ async def clear_history():
         return {"cleared": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail="Database failure")
+
+# Serve static files in production
+FRONTEND_DIST = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
+if os.path.exists(FRONTEND_DIST):
+    app.mount("/static", StaticFiles(directory=os.path.join(FRONTEND_DIST, "static")), name="static")
+    
+    @app.get("/")
+    async def serve_frontend():
+        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
+    
+    @app.get("/{catch_all:path}")
+    async def serve_frontend_catch_all(catch_all: str):
+        # Try to serve the file if it exists, otherwise serve index.html for SPA routing
+        file_path = os.path.join(FRONTEND_DIST, catch_all)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
