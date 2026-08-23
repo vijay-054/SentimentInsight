@@ -1,30 +1,9 @@
-:root {
-  --bg-color: #0f172a;
-  --text-color: #f8fafc;
-  --accent-color: #a3e635; /* Neon lime */
-  --accent-hover: #84cc16;
-  --positive-color: #22c55e;
-  --negative-color: #ef4444;
-  --panel-bg: #1e293b;
-  --border-color: #334155;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  background-color: var(--bg-color);
-  color: var(--text-color);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-}
-
-#root {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+@layer base {
+  body {
+    @apply bg-pageBg text-primaryText antialiased font-sans m-0 p-0;
+  }
 }
